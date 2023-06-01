@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/roman-mazur/design-practice-2-template/httptools"
-	"github.com/roman-mazur/design-practice-2-template/signal"
+	"github.com/AidXylelele/go_lab_4/httptools"
+	"github.com/AidXylelele/go_lab_4/signal"
 )
 
 var (
@@ -77,8 +77,6 @@ func forward(dst string, rw http.ResponseWriter, r *http.Request) error {
 			rw.Header().Set("lb-from", dst)
 		}
 		log.Printf("fwd %d %s", resp.StatusCode, resp.Request.URL)
-
-		// Read the response body and calculate the number of bytes sent
 		body := resp.Body
 		defer body.Close()
 		buf := make([]byte, 4096) // Use a buffer for efficient copying

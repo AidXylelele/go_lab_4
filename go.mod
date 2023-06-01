@@ -1,4 +1,4 @@
-module github.com/roman-mazur/design-practice-2-template
+module github.com/AidXylelele/go_lab_4
 
 go 1.20
 
