@@ -13,6 +13,9 @@ import (
 )
 
 const baseAddress = "http://balancer:8090"
+const responseSize1 = 1000
+const responseSize2 = 2000
+const responseSize3 = 3000
 
 var client = http.Client{
 	Timeout: 3 * time.Second,
@@ -48,22 +51,22 @@ func (s *IntegrationTestSuite) TestGetRequest(c *C) {
 	if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
 		c.Skip("Integration test is not enabled")
 	}
-	server1, _ := sendRequest(baseAddress, 2000, &client)
+	server1, _ := sendRequest(baseAddress, responseSize3, &client)
 	c.Check(server1.Header.Get("lb-from"), Equals, "server1:8080")
 
-	server2, _ := sendRequest(baseAddress, 1500, &client)
+	server2, _ := sendRequest(baseAddress, responseSize2, &client)
 	c.Check(server2.Header.Get("lb-from"), Equals, "server2:8080")
 
-	server3, _ := sendRequest(baseAddress, 1000, &client)
+	server3, _ := sendRequest(baseAddress, responseSize1, &client)
 	c.Check(server3.Header.Get("lb-from"), Equals, "server3:8080")
 
-	server3_again, _ := sendRequest(baseAddress, 2000, &client)
+	server3_again, _ := sendRequest(baseAddress, responseSize3, &client)
 	c.Check(server3_again.Header.Get("lb-from"), Equals, "server3:8080")
 
-	server2_again, _ := sendRequest(baseAddress, 2000, &client)
+	server2_again, _ := sendRequest(baseAddress, responseSize2, &client)
 	c.Check(server2_again.Header.Get("lb-from"), Equals, "server2:8080")
 
-	server1_again, _ := sendRequest(baseAddress, 1000, &client)
+	server1_again, _ := sendRequest(baseAddress, responseSize1, &client)
 	c.Check(server1_again.Header.Get("lb-from"), Equals, "server1:8080")
 }
 
