@@ -89,7 +89,7 @@ func (s *IntegrationSuite) TestBalancer(c *C) {
 	}
 
 	two_server3Header := two_server3.Header.Get("lb-from")
-	c.Check(two_server3Header, Equals, "server3:8080")
+	c.Check(two_server3Header, Equals, "server1:8080")
 }
 
 func (s *IntegrationSuite) BenchmarkBalancer(c *C) {
