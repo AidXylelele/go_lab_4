@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/roman-mazur/design-practice-2-template/httptools"
@@ -14,20 +15,26 @@ import (
 )
 
 var (
-	port = flag.Int("port", 8090, "load balancer port")
+	port       = flag.Int("port", 8090, "load balancer port")
 	timeoutSec = flag.Int("timeout-sec", 3, "request timeout time in seconds")
-	https = flag.Bool("https", false, "whether backends support HTTPs")
+	https      = flag.Bool("https", false, "whether backends support HTTPs")
 
 	traceEnabled = flag.Bool("trace", false, "whether to include tracing information into responses")
 )
 
 var (
-	timeout = time.Duration(*timeoutSec) * time.Second
+	timeout     = time.Duration(*timeoutSec) * time.Second
 	serversPool = []string{
 		"server1:8080",
 		"server2:8080",
 		"server3:8080",
 	}
+	healthyServers = make([]string, 3)
+)
+
+var (
+	serverLoad   = make(map[string]int64) // Map to store the load of each server
+	serverLoadMu sync.Mutex               // Mutex to protect concurrent access to serverLoad
 )
 
 func scheme() string {
@@ -69,13 +76,24 @@ func forward(dst string, rw http.ResponseWriter, r *http.Request) error {
 		if *traceEnabled {
 			rw.Header().Set("lb-from", dst)
 		}
-		log.Println("fwd", resp.StatusCode, resp.Request.URL)
-		rw.WriteHeader(resp.StatusCode)
-		defer resp.Body.Close()
-		_, err := io.Copy(rw, resp.Body)
+		log.Printf("fwd %d %s", resp.StatusCode, resp.Request.URL)
+
+		// Read the response body and calculate the number of bytes sent
+		body := resp.Body
+		defer body.Close()
+		buf := make([]byte, 4096) // Use a buffer for efficient copying
+		count, err := io.CopyBuffer(rw, body, buf)
 		if err != nil {
 			log.Printf("Failed to write response: %s", err)
 		}
+		log.Printf("Sent %d bytes in response to %s", count, r.RemoteAddr)
+
+		// Update the server load
+		serverLoadMu.Lock()
+		serverLoad[dst] += count
+		serverLoadMu.Unlock()
+
+		rw.WriteHeader(resp.StatusCode)
 		return nil
 	} else {
 		log.Printf("Failed to get response from %s: %s", dst, err)
@@ -84,26 +102,97 @@ func forward(dst string, rw http.ResponseWriter, r *http.Request) error {
 	}
 }
 
+func getIndex(arr []string, target string) int {
+	for i, value := range arr {
+		if value == target {
+			return i
+		}
+	}
+	return -1
+}
+
 func main() {
+	healthChecker := &HealthChecker{}
+	healthChecker.health = health
+	healthChecker.serversPool = serversPool
+	healthChecker.healthyServers = healthyServers
+	healthChecker.checkInterval = 10 * time.Second
+
+	balancer := &Balancer{}
+	balancer.healthChecker = healthChecker
+	balancer.forward = forward
+
+	balancer.Start()
+}
+
+type Balancer struct {
+	healthChecker *HealthChecker
+	forward       func(string, http.ResponseWriter, *http.Request) error
+}
+
+func (b *Balancer) getServerIndexWithLowestLoad(serverLoad map[string]int64, serversPool []string) int {
+	serverLoadMu.Lock()
+	defer serverLoadMu.Unlock()
+
+	minLoad := int64(^uint64(0) >> 1) // Initialize with the maximum possible value
+	var minLoadServer string
+
+	for _, server := range serversPool {
+		load := serverLoad[server]
+		if load < minLoad {
+			minLoad = load
+			minLoadServer = server
+		}
+	}
+	return getIndex(serversPool, minLoadServer)
+}
+
+func (b *Balancer) Start() {
 	flag.Parse()
 
-	// TODO: Використовуйте дані про стан сервреа, щоб підтримувати список тих серверів, яким можна відправляти ззапит.
-	for _, server := range serversPool {
-		server := server
-		go func() {
-			for range time.Tick(10 * time.Second) {
-				log.Println(server, health(server))
-			}
-		}()
-	}
+	b.healthChecker.StartHealthCheck()
 
 	frontend := httptools.CreateServer(*port, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// TODO: Рееалізуйте свій алгоритм балансувальника.
-		forward(serversPool[0], rw, r)
+		index := b.getServerIndexWithLowestLoad(serverLoad, serversPool)
+		log.Println(serverLoad)
+		_ = b.forward(b.healthChecker.healthyServers[index], rw, r)
 	}))
-
 	log.Println("Starting load balancer...")
 	log.Printf("Tracing support enabled: %t", *traceEnabled)
 	frontend.Start()
 	signal.WaitForTerminationSignal()
+}
+
+type HealthChecker struct {
+	health         func(string) bool
+	serversPool    []string
+	healthyServers []string
+	checkInterval  time.Duration
+}
+
+func (hc *HealthChecker) StartHealthCheck() {
+	for i, server := range hc.serversPool {
+		server := server
+		i := i
+		go func() {
+			for range time.Tick(hc.checkInterval) {
+				isHealthy := hc.health(server)
+				if !isHealthy {
+					hc.serversPool[i] = ""
+				} else {
+					hc.serversPool[i] = server
+				}
+
+				hc.healthyServers = hc.healthyServers[:0]
+
+				for _, value := range hc.serversPool {
+					if value != "" {
+						hc.healthyServers = append(hc.healthyServers, value)
+					}
+				}
+
+				log.Println(server, isHealthy)
+			}
+		}()
+	}
 }
