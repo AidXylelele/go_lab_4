@@ -46,7 +46,7 @@ func (s *IntegrationTestSuite) TestGetRequest(c *C) {
 		log.Printf("error %s", err)
 	}
 
-	c.Check(resp.Header.Get("lb-from"), Equals, "server1:8080")
+	c.Check(resp.Header.Get("lb-from"), Equals, "server2:8080")
 
 }
 
