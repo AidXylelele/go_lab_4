@@ -51,7 +51,7 @@ func (s *IntegrationTestSuite) TestGetRequest(c *C) {
 	server1, _ := sendRequest(baseAddress, 2000, &client)
 	c.Check(server1.Header.Get("lb-from"), Equals, "server1:8080")
 
-	server2, _ := sendRequest(baseAddress, 1000, &client)
+	server2, _ := sendRequest(baseAddress, 1500, &client)
 	c.Check(server2.Header.Get("lb-from"), Equals, "server2:8080")
 
 	server3, _ := sendRequest(baseAddress, 1000, &client)
