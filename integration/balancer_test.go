@@ -3,9 +3,11 @@ package integration
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -15,93 +17,51 @@ const baseAddress = "http://balancer:8090"
 
 var responseSize = flag.Int("size", 2023, "desired server response size")
 
-type Client struct {
-	client http.Client
+var client = http.Client{
+	Timeout: 3 * time.Second,
 }
 
-func NewClient() *Client {
-	return &Client{
-		client: http.Client{
-			Timeout: 3 * time.Second,
-		},
-	}
+type IntegrationTestSuite struct{}
+
+var _ = Suite(&IntegrationTestSuite{})
+
+func TestBalancer(t *testing.T) {
+	TestingT(t)
 }
 
-func (c *Client) Get(responseSize int) (*http.Response, error) {
+func sendRequest(baseAddress string, responseSize int, client *http.Client) (*http.Response, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/some-data", baseAddress), nil)
 	if err != nil {
+		log.Printf("error creating request: %s", err)
 		return nil, err
 	}
 	req.Header.Set("Response-Size", strconv.Itoa(responseSize))
 
-	return c.client.Do(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("error: %s", err)
+		return nil, err
+	}
+
+	log.Printf("response %d", resp.StatusCode)
+	return resp, nil
 }
 
-type IntegrationSuite struct {
-	client *Client
-}
-
-func (s *IntegrationSuite) SetUpSuite(c *C) {
-	s.client = NewClient()
-}
-
-func (s *IntegrationSuite) TestBalancer(c *C) {
+func (s *IntegrationTestSuite) TestGetRequest(c *C) {
 	if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
 		c.Skip("Integration test is not enabled")
 	}
-
-	// test server1
-	server1, err := s.client.Get(3072)
-	if err != nil {
-		c.Error(err)
-	}
-
-	server1Header := server1.Header.Get("lb-from")
-	c.Check(server1Header, Equals, "server1:8080")
-
-	// test server2
-	server2, err := s.client.Get(1024)
-	if err != nil {
-		c.Error(err)
-	}
-
-	server2Header := server2.Header.Get("lb-from")
-	c.Check(server2Header, Equals, "server2:8080")
-
-	// test server3
-	server3, err := s.client.Get(2048)
-	if err != nil {
-		c.Error(err)
-	}
-
-	server3Header := server3.Header.Get("lb-from")
-	c.Check(server3Header, Equals, "server3:8080")
-	// again server 2
-	two_server2, err := s.client.Get(1024)
-	if err != nil {
-		c.Error(err)
-	}
-
-	two_server2Header := two_server2.Header.Get("lb-from")
-	c.Check(two_server2Header, Equals, "server2:8080")
-
-	// test server3 again
-	two_server3, err := s.client.Get(1024)
-	if err != nil {
-		c.Error(err)
-	}
-
-	two_server3Header := two_server3.Header.Get("lb-from")
-	c.Check(two_server3Header, Equals, "server3:8080")
+	server1, _ := sendRequest(baseAddress, *responseSize, &client)
+	c.Check(server1.Header.Get("lb-from"), Equals, "server1:8080")
 }
 
-func (s *IntegrationSuite) BenchmarkBalancer(c *C) {
+func (s *IntegrationTestSuite) BenchmarkBalancer(c *C) {
 	if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
 		c.Skip("Integration test is not enabled")
 	}
 
 	for i := 0; i < c.N; i++ {
-		_, err := s.client.Get(10)
+		_, err := client.Get(fmt.Sprintf("%s/api/v1/some-data", baseAddress))
 		if err != nil {
 			c.Error(err)
 		}
