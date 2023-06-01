@@ -15,7 +15,8 @@ import (
 
 const baseAddress = "http://balancer:8090"
 
-var responseSize = flag.Int("size", 2023, "desired server response size")
+var responseSize1 = flag.Int("size", 1000, "desired server response size")
+var responseSize2 = flag.Int("size", 2000, "desired server response size")
 
 var client = http.Client{
 	Timeout: 3 * time.Second,
@@ -51,8 +52,23 @@ func (s *IntegrationTestSuite) TestGetRequest(c *C) {
 	if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
 		c.Skip("Integration test is not enabled")
 	}
-	server1, _ := sendRequest(baseAddress, *responseSize, &client)
+	server1, _ := sendRequest(baseAddress, *responseSize2, &client)
 	c.Check(server1.Header.Get("lb-from"), Equals, "server1:8080")
+
+	server2, _ := sendRequest(baseAddress, *responseSize1, &client)
+	c.Check(server2.Header.Get("lb-from"), Equals, "server2:8080")
+
+	server3, _ := sendRequest(baseAddress, *responseSize1, &client)
+	c.Check(server3.Header.Get("lb-from"), Equals, "server3:8080")
+
+	server3_again, _ := sendRequest(baseAddress, *responseSize2, &client)
+	c.Check(server3_again.Header.Get("lb-from"), Equals, "server3:8080")
+
+	server2_again, _ := sendRequest(baseAddress, *responseSize2, &client)
+	c.Check(server2_again.Header.Get("lb-from"), Equals, "server2:8080")
+
+	server1_again, _ := sendRequest(baseAddress, *responseSize1, &client)
+	c.Check(server1_again.Header.Get("lb-from"), Equals, "server1:8080")
 }
 
 func (s *IntegrationTestSuite) BenchmarkBalancer(c *C) {
