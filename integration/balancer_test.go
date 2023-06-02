@@ -14,6 +14,7 @@ import (
 )
 
 const baseAddress = "http://balancer:8090"
+const key = "vns-2023"
 const responseSize1 = 1000
 const responseSize2 = 2000
 const responseSize3 = 3000
@@ -76,7 +77,7 @@ func (s *IntegrationTestSuite) TestGetRequest(c *C) {
 	c.Check(server1_again.Header.Get("lb-from"), Equals, "server1:8080")
 
 	// tests for db
-	db, err := client.Get(fmt.Sprintf("%s/api/v1/some-data?key=vns-2023", baseAddress))
+	db, err := client.Get(fmt.Sprintf("%s/api/v1/some-data?key=%s", baseAddress, key))
 	if err != nil {
 		c.Error(err)
 	}
