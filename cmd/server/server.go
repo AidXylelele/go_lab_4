@@ -144,7 +144,7 @@ func main() {
 	body := ReqBody{Value: time.Now().Format(time.RFC3339)}
 	json.NewEncoder(buff).Encode(body)
 
-	res, err := client.Post(fmt.Sprintf("%s/vns-2023", dbUrl), "application/json", buff)
+	res, err := client.Post(fmt.Sprintf("%s/test", dbUrl), "application/json", buff)
 	if err != nil {
 		log.Printf("Error while sending test request to db: %s", err.Error())
 	}
