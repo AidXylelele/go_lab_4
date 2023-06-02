@@ -146,7 +146,7 @@ func main() {
 
 	res, err := client.Post(fmt.Sprintf("%s/vns-2023", dbUrl), "application/json", buff)
 	if err != nil {
-		log.Printf("Error while sending test request to db: %s", err.Error())
+		log.Printf("Error test request to db: %s", err.Error())
 	}
 	defer res.Body.Close()
 
