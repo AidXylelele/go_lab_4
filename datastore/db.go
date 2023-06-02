@@ -113,6 +113,7 @@ func (db *Db) createSegment() error {
 
 	db.out = f
 	db.outOffset = 0
+	db.outPath = filePath
 	db.segments = append(db.segments, newSegment)
 
 	if len(db.segments) >= 3 {

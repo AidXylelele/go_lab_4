@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -166,4 +167,47 @@ func assertEqual(t *testing.T, got, expected interface{}) {
 	if got != expected {
 		t.Errorf("Expected: %v, Got: %v", expected, got)
 	}
+}
+
+func TestDb_Checksum(t *testing.T) {
+	dir, err := ioutil.TempDir("", "test-db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	db, err := NewDb(dir, 85)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	db.Put("key1", "value1")
+
+	t.Run("get value", func(t *testing.T) {
+		_, err := db.Get("key1")
+		if err != nil {
+			t.Errorf("Error occurred while getting value: %s", err)
+		}
+	})
+
+	file, err := os.OpenFile(db.outPath, os.O_RDWR, 0o655)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Corrupt the file by changing a byte at offset 3
+	_, err = file.WriteAt([]byte{0x59}, int64(3))
+	if err != nil {
+		file.Close()
+		t.Fatal(err)
+	}
+	file.Close()
+
+	t.Run("can't get value", func(t *testing.T) {
+		_, err := db.Get("key1")
+		if err == nil || !regexp.MustCompile("SHA1").MatchString(err.Error()) {
+			t.Errorf("Expected error containing 'SHA1', but got: %v", err)
+		}
+	})
 }
