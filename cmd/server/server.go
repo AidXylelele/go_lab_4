@@ -49,7 +49,7 @@ type SomeDataHandler struct{}
 
 func (h SomeDataHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
-	if key != "" {
+	if key != "" && r.Header.Get("Response-Size") != "" {
 		if err := processDBRequest(rw, key); err != nil {
 			rw.WriteHeader(http.StatusInternalServerError)
 			return
