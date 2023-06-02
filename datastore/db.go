@@ -9,7 +9,10 @@ import (
 	"path/filepath"
 )
 
-const outFileName = "current-data"
+const (
+	outFileName = "current-data"
+	bufSize     = 8192
+)
 
 var ErrNotFound = fmt.Errorf("record does not exist")
 
@@ -22,16 +25,21 @@ type Db struct {
 	dir              string
 	segmentSize      int64
 	lastSegmentIndex int
+	index            hashIndex
+	segments         []*Segment
+}
 
-	index    hashIndex
-	segments []*Segment
+type Segment struct {
+	outOffset int64
+	index     hashIndex
+	filePath  string
 }
 
 func NewDb(dir string, segmentSize int64) (*Db, error) {
 	db := &Db{
-		segments:    make([]*Segment, 0),
 		dir:         dir,
 		segmentSize: segmentSize,
+		segments:    make([]*Segment, 0),
 	}
 
 	err := db.createSegment()
@@ -43,10 +51,9 @@ func NewDb(dir string, segmentSize int64) (*Db, error) {
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
+
 	return db, nil
 }
-
-const bufSize = 8192
 
 func (db *Db) createSegment() error {
 	filePath := db.getNewFileName()
@@ -59,13 +66,16 @@ func (db *Db) createSegment() error {
 		filePath: filePath,
 		index:    make(hashIndex),
 	}
+
 	db.out = f
 	db.outOffset = 0
 	db.segments = append(db.segments, newSegment)
+
 	if len(db.segments) >= 3 {
-		db.compactOldSegments()
+		go db.compactOldSegments()
 	}
-	return err
+
+	return nil
 }
 
 func (db *Db) getNewFileName() string {
@@ -75,41 +85,42 @@ func (db *Db) getNewFileName() string {
 }
 
 func (db *Db) compactOldSegments() {
-	go func() {
-		filePath := db.getNewFileName()
-		newSegment := &Segment{
-			filePath: filePath,
-			index:    make(hashIndex),
-		}
-		var offset int64
-		f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
-		if err != nil {
-			return
-		}
-		lastSegmentIndex := len(db.segments) - 2
-		for i := 0; i <= lastSegmentIndex; i++ {
-			s := db.segments[i]
-			for key, index := range s.index {
-				if i < lastSegmentIndex {
-					isInNewerSegments := checkKeyInSegments(db.segments[i+1:lastSegmentIndex+1], key)
-					if isInNewerSegments {
-						continue
-					}
-				}
-				value, _ := s.getFromSegment(index)
-				e := entry{
-					key:   key,
-					value: value,
-				}
-				n, err := f.Write(e.Encode())
-				if err == nil {
-					newSegment.index[key] = offset
-					offset += int64(n)
-				}
+	filePath := db.getNewFileName()
+	newSegment := &Segment{
+		filePath: filePath,
+		index:    make(hashIndex),
+	}
+	var offset int64
+
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	lastSegmentIndex := len(db.segments) - 2
+	for i := 0; i <= lastSegmentIndex; i++ {
+		s := db.segments[i]
+		for key, index := range s.index {
+			if i < lastSegmentIndex && checkKeyInSegments(db.segments[i+1:lastSegmentIndex+1], key) {
+				continue
+			}
+
+			value, _ := s.getFromSegment(index)
+			e := entry{
+				key:   key,
+				value: value,
+			}
+
+			n, err := f.Write(e.Encode())
+			if err == nil {
+				newSegment.index[key] = offset
+				offset += int64(n)
 			}
 		}
-		db.segments = []*Segment{newSegment, db.getLastSegment()}
-	}()
+	}
+
+	db.segments = []*Segment{newSegment, db.getLastSegment()}
 }
 
 func checkKeyInSegments(segments []*Segment, key string) bool {
@@ -126,12 +137,9 @@ func (db *Db) recover() error {
 	var buf [bufSize]byte
 
 	in := bufio.NewReaderSize(db.out, bufSize)
+
 	for err == nil {
-		var (
-			header, data []byte
-			n            int
-		)
-		header, err = in.Peek(bufSize)
+		header, err := in.Peek(bufSize)
 		if err == io.EOF {
 			if len(header) == 0 {
 				return err
@@ -139,15 +147,17 @@ func (db *Db) recover() error {
 		} else if err != nil {
 			return err
 		}
+
 		size := binary.LittleEndian.Uint32(header)
+		var data []byte
 
 		if size < bufSize {
 			data = buf[:size]
 		} else {
 			data = make([]byte, size)
 		}
-		n, err = in.Read(data)
 
+		n, err := in.Read(data)
 		if err == nil {
 			if n != int(size) {
 				return fmt.Errorf("corrupted file")
@@ -158,6 +168,7 @@ func (db *Db) recover() error {
 			db.setKey(e.key, int64(n))
 		}
 	}
+
 	return err
 }
 
@@ -187,6 +198,7 @@ func (db *Db) Get(key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return segment.getFromSegment(position)
 }
 
@@ -204,24 +216,20 @@ func (db *Db) Put(key, value string) error {
 	if err != nil {
 		return err
 	}
+
 	if stat.Size()+length > db.segmentSize {
 		err := db.createSegment()
 		if err != nil {
 			return err
 		}
 	}
+
 	n, err := db.out.Write(e.Encode())
 	if err == nil {
 		db.setKey(e.key, int64(n))
 	}
+
 	return err
-}
-
-type Segment struct {
-	outOffset int64
-
-	index    hashIndex
-	filePath string
 }
 
 func (s *Segment) getFromSegment(position int64) (string, error) {
@@ -241,5 +249,6 @@ func (s *Segment) getFromSegment(position int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return value, nil
 }
