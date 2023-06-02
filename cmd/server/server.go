@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -115,7 +116,10 @@ func main() {
 	body := ReqBody{Value: time.Now().Format(time.RFC3339)}
 	json.NewEncoder(buff).Encode(body)
 
-	res, _ := client.Post(fmt.Sprintf("%s/vns-2023", dbUrl), "application/json", buff)
+	res, err := client.Post(fmt.Sprintf("%s/vns-2023", dbUrl), "application/json", buff)
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer res.Body.Close()
 
 	signal.WaitForTerminationSignal()
