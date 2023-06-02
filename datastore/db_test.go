@@ -16,7 +16,7 @@ func TestDb_Put(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	db, err := NewDb(dir, 100)
+	db, err := NewDb(dir, 150)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestDb_Segmentation(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	db, err := NewDb(dir, 45)
+	db, err := NewDb(dir, 85)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestDb_Segmentation(t *testing.T) {
 			t.Error(err)
 		}
 		inf, _ := file.Stat()
-		assertFileSize(t, inf, 66)
+		assertFileSize(t, inf, 126)
 	})
 
 	t.Run("shouldn't store new values of duplicate keys", func(t *testing.T) {
