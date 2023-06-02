@@ -62,12 +62,6 @@ func main() {
 				rw.WriteHeader(resp.StatusCode)
 				return
 			}
-			respDelayString := os.Getenv(confResponseDelaySec)
-			if delaySec, parseErr := strconv.Atoi(respDelayString); parseErr == nil && delaySec > 0 && delaySec < 300 {
-				time.Sleep(time.Duration(delaySec) * time.Second)
-			}
-
-			report.Process(r)
 
 			var body RespBody
 			json.NewDecoder(resp.Body).Decode(&body)
