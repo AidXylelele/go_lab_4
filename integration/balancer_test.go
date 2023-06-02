@@ -76,7 +76,6 @@ func (s *IntegrationTestSuite) TestGetRequest(c *C) {
 	server1_again, _ := sendRequest(baseAddress, responseSize1, &client)
 	c.Check(server1_again.Header.Get("lb-from"), Equals, "server1:8080")
 
-	// tests for db
 	db, err := client.Get(fmt.Sprintf("%s/api/v1/some-data?key=%s", baseAddress, key))
 	if err != nil {
 		c.Error(err)
