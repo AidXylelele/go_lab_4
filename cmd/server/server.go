@@ -17,7 +17,6 @@ import (
 
 var port = flag.Int("port", 8080, "server port")
 
-// test
 const (
 	confResponseDelaySec = "CONF_RESPONSE_DELAY_SEC"
 	confHealthFailure    = "CONF_HEALTH_FAILURE"
