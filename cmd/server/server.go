@@ -40,24 +40,18 @@ func main() {
 
 	h.HandleFunc("/api/v1/some-data", func(rw http.ResponseWriter, r *http.Request) {
 		key := r.URL.Query().Get("key")
-		if key == "" {
-			rw.WriteHeader(http.StatusBadRequest)
-			return
+		if key != "" {
+			resp, err := client.Get(fmt.Sprintf("http://db:8083/db/%s", key))
+			statusOk := resp.StatusCode >= 200 && resp.StatusCode < 300
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			if !statusOk {
+				rw.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
-
-		resp, err := client.Get(fmt.Sprintf("http://db:8083/db/%s", key))
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		statusOk := resp.StatusCode >= 200 && resp.StatusCode < 300
-
-		if !statusOk {
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
 		respDelayString := os.Getenv(confResponseDelaySec)
 		if delaySec, parseErr := strconv.Atoi(respDelayString); parseErr == nil && delaySec > 0 && delaySec < 300 {
 			time.Sleep(time.Duration(delaySec) * time.Second)
@@ -69,18 +63,21 @@ func main() {
 		rw.WriteHeader(http.StatusOK)
 
 		responseSize := 1024 // Default response size
-		if sizeHeader := r.Header.Get("Response-Size"); sizeHeader != "" {
-			if size, err := strconv.Atoi(sizeHeader); err == nil && size > 0 {
-				responseSize = size
+		if key == "" {
+			if sizeHeader := r.Header.Get("Response-Size"); sizeHeader != "" {
+				if size, err := strconv.Atoi(sizeHeader); err == nil && size > 0 {
+					responseSize = size
+				}
 			}
+
+			responseData := make([]string, responseSize)
+			for i := 0; i < responseSize; i++ {
+				responseData[i] = strconv.Itoa(responseSize)
+			}
+
+			_ = json.NewEncoder(rw).Encode(responseData)
 		}
 
-		responseData := make([]string, responseSize)
-		for i := 0; i < responseSize; i++ {
-			responseData[i] = strconv.Itoa(responseSize)
-		}
-
-		_ = json.NewEncoder(rw).Encode(responseData)
 	})
 
 	h.Handle("/report", report)
