@@ -22,7 +22,6 @@ func (s *BalancerSuite) TestBalancer(c *check.C) {
 	balancer := &Balancer{}
 	balancer.healthChecker = healthChecker
 
-	//seting serverLoads
 	balancer.updateLowestLoadIndex(map[string]int64{
 		"server1:8080": 100,
 		"server2:8080": 200,
@@ -31,7 +30,6 @@ func (s *BalancerSuite) TestBalancer(c *check.C) {
 
 	server1 := balancer.getServerWithLowestLoad()
 
-	//seting serverLoads
 	balancer.updateLowestLoadIndex(map[string]int64{
 		"server1:8080": 300,
 		"server2:8080": 200,
@@ -40,7 +38,6 @@ func (s *BalancerSuite) TestBalancer(c *check.C) {
 
 	server2 := balancer.getServerWithLowestLoad()
 
-	//seting serverLoads
 	balancer.updateLowestLoadIndex(map[string]int64{
 		"server1:8080": 200,
 		"server2:8080": 150,
