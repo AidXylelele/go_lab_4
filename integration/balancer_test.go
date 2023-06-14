@@ -18,11 +18,6 @@ const responseSize1 = 1000
 const responseSize2 = 2000
 const responseSize3 = 3000
 
-type RespBody struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
 var client = http.Client{
 	Timeout: 3 * time.Second,
 }
