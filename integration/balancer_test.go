@@ -13,7 +13,7 @@ import (
 )
 
 const baseAddress = "http://balancer:8090"
-const key = "vns-2023"
+
 const responseSize1 = 1000
 const responseSize2 = 2000
 const responseSize3 = 3000
