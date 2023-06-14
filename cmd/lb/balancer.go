@@ -100,13 +100,25 @@ func forward(dst string, rw http.ResponseWriter, r *http.Request) error {
 	}
 }
 
-func getIndex(arr []string, target string) int {
-	for i, value := range arr {
-		if value == target {
-			return i
+func (b *Balancer) updateLowestLoadIndex(serverLoad map[string]int64) {
+	serverLoadMu.Lock()
+	defer serverLoadMu.Unlock()
+
+	minLoad := int64(^uint64(0) >> 1)
+
+	for i, server := range b.healthChecker.healthyServers {
+		load := serverLoad[server]
+		if load < minLoad {
+			minLoad = load
+			b.lowestLoadIndex = i
 		}
 	}
-	return -1
+}
+
+func (b *Balancer) getServerWithLowestLoad() string {
+	index := b.lowestLoadIndex
+	server := b.healthChecker.healthyServers[index]
+	return server
 }
 
 func main() {
@@ -124,25 +136,9 @@ func main() {
 }
 
 type Balancer struct {
-	healthChecker *HealthChecker
-	forward       func(string, http.ResponseWriter, *http.Request) error
-}
-
-func (b *Balancer) getServerIndexWithLowestLoad(serverLoad map[string]int64, serversPool []string) int {
-	serverLoadMu.Lock()
-	defer serverLoadMu.Unlock()
-
-	minLoad := int64(^uint64(0) >> 1) // Initialize with the maximum possible value
-	var minLoadServer string
-
-	for _, server := range serversPool {
-		load := serverLoad[server]
-		if load < minLoad {
-			minLoad = load
-			minLoadServer = server
-		}
-	}
-	return getIndex(serversPool, minLoadServer)
+	healthChecker   *HealthChecker
+	forward         func(string, http.ResponseWriter, *http.Request) error
+	lowestLoadIndex int
 }
 
 func (b *Balancer) Start() {
@@ -151,9 +147,11 @@ func (b *Balancer) Start() {
 	b.healthChecker.StartHealthCheck()
 
 	frontend := httptools.CreateServer(*port, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		index := b.getServerIndexWithLowestLoad(serverLoad, serversPool)
+		b.updateLowestLoadIndex(serverLoad)
+		server := b.getServerWithLowestLoad()
+		log.Println(server)
 		log.Println(serverLoad)
-		_ = b.forward(b.healthChecker.healthyServers[index], rw, r)
+		_ = b.forward(server, rw, r)
 	}))
 	log.Println("Starting load balancer...")
 	log.Printf("Tracing support enabled: %t", *traceEnabled)
