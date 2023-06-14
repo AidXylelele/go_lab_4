@@ -33,8 +33,8 @@ var (
 )
 
 var (
-	serverLoad   = make(map[string]int64) // Map to store the load of each server
-	serverLoadMu sync.Mutex               // Mutex to protect concurrent access to serverLoad
+	serverLoad   = make(map[string]int64)
+	serverLoadMu sync.Mutex
 )
 
 func scheme() string {
@@ -79,14 +79,13 @@ func forward(dst string, rw http.ResponseWriter, r *http.Request) error {
 		log.Printf("fwd %d %s", resp.StatusCode, resp.Request.URL)
 		body := resp.Body
 		defer body.Close()
-		buf := make([]byte, 4096) // Use a buffer for efficient copying
+		buf := make([]byte, 4096)
 		count, err := io.CopyBuffer(rw, body, buf)
 		if err != nil {
 			log.Printf("Failed to write response: %s", err)
 		}
 		log.Printf("Sent %d bytes in response to %s", count, r.RemoteAddr)
 
-		// Update the server load
 		serverLoadMu.Lock()
 		serverLoad[dst] += count
 		serverLoadMu.Unlock()

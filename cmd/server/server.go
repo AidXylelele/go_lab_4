@@ -46,7 +46,7 @@ func main() {
 		rw.Header().Set("content-type", "application/json")
 		rw.WriteHeader(http.StatusOK)
 
-		responseSize := 1024 // Default response size
+		responseSize := 1024
 		if sizeHeader := r.Header.Get("Response-Size"); sizeHeader != "" {
 			if size, err := strconv.Atoi(sizeHeader); err == nil && size > 0 {
 				responseSize = size
