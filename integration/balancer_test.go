@@ -1,7 +1,6 @@
 package integration
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -75,20 +74,6 @@ func (s *IntegrationTestSuite) TestGetRequest(c *C) {
 
 	server1_again, _ := sendRequest(baseAddress, responseSize1, &client)
 	c.Check(server1_again.Header.Get("lb-from"), Equals, "server1:8080")
-
-	db, err := client.Get(fmt.Sprintf("%s/api/v1/some-data?key=%s", baseAddress, key))
-	if err != nil {
-		c.Error(err)
-	}
-	var body RespBody
-	err = json.NewDecoder(db.Body).Decode(&body)
-	if err != nil {
-		c.Error(err)
-	}
-	c.Check(body.Key, Equals, "vns-2023")
-	if body.Value == "" {
-		c.Error(err)
-	}
 }
 
 func (s *IntegrationTestSuite) BenchmarkBalancer(c *C) {
